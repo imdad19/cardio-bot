@@ -25,6 +25,7 @@ from sheets import (
     search_all_patients, update_hdj_patient, update_bloc_patient,
     get_all_data_for_analysis, get_stats,
     format_hdj_patient, format_bloc_patient,
+    upload_image_to_drive, append_image_to_patient,
 )
 from dashboard import generate_dashboard
 
@@ -87,16 +88,20 @@ Pour ADD_HDJ, extrais ces champs (tous optionnels sauf nom):
 - nom, prenom, age (entier), sexe (Homme/Femme),
   clinique (presentation clinique: symptomes et signes comme dyspnee, douleur thoracique, palpitations, syncope, oedemes...),
   medecin_referant (medecin qui a adresse le patient),
+  decision_finale,
+  telephone (numero de telephone, commence par 05, 06 ou 07),
   adresse, date_visite, tension, frequence_cardiaque,
   examen (ETT/ETO/ECG/Holter/Epreuve d'effort),
-  diagnostic_final, antecedents, traitement, decision_finale, evolution, note, numero_dossier
+  diagnostic_final, antecedents, traitement, evolution, note, numero_dossier
 
 Pour ADD_BLOC, extrais:
 - nom, prenom, age, sexe,
   clinique (presentation clinique: symptomes et signes),
   medecin_referant (medecin qui a adresse le patient),
+  decision,
+  telephone (numero de telephone, commence par 05, 06 ou 07),
   diagnostic, type_intervention,
-  date_intervention, operateur, anesthesiste, decision,
+  date_intervention, operateur, anesthesiste,
   resultat_operation, complications, duree, suivi_postop, note, numero_dossier
 
 Pour SEARCH_PATIENT: data = {"query": "terme de recherche"}
@@ -582,6 +587,74 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(message, parse_mode="Markdown")
 
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle photo messages -- upload to Google Drive and link to patient."""
+    if not is_authorized(update.effective_user.id):
+        await update.message.reply_text("Acces non autorise.")
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    # Get the highest resolution photo
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+
+    # Download to temp file
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+        await file.download_to_drive(tmp_path)
+
+    try:
+        # Name the file by patient name if provided, otherwise timestamp
+        from datetime import datetime
+        caption = update.message.caption or ""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if caption.strip():
+            # Use patient name as filename
+            safe_name = caption.strip().replace(" ", "_")
+            filename = f"{safe_name}_{timestamp}.jpg"
+        else:
+            filename = f"cardiobot_{timestamp}.jpg"
+
+        # Upload to Google Drive
+        link = upload_image_to_drive(tmp_path, filename)
+
+        if caption.strip():
+            # Try to link to a specific patient mentioned in the caption
+            # Try HDJ first, then Bloc
+            success, name = append_image_to_patient("HDJ", caption.strip(), link)
+            if not success:
+                success, name = append_image_to_patient("Bloc Operatoire", caption.strip(), link)
+
+            if success:
+                await update.message.reply_text(
+                    f"Image sauvegardee et liee au dossier de *{name}*.\n"
+                    f"Lien: {link}",
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    f"Image sauvegardee sur Google Drive.\n"
+                    f"Patient \"{caption.strip()}\" non trouve dans la base.\n"
+                    f"Lien: {link}"
+                )
+        else:
+            await update.message.reply_text(
+                f"Image sauvegardee sur Google Drive.\n"
+                f"Lien: {link}\n\n"
+                "Pour lier cette image a un patient, envoyez la photo "
+                "avec le nom du patient en legende."
+            )
+    except Exception as e:
+        logger.error(f"Image upload error: {e}")
+        await update.message.reply_text(f"Erreur lors de l'envoi de l'image: {str(e)[:200]}")
+    finally:
+        import os
+        os.unlink(tmp_path)
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -604,6 +677,7 @@ def main():
     app.add_handler(CommandHandler("dashboard", cmd_dashboard))
     app.add_handler(CommandHandler("clear",     cmd_clear))
     app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("CardioBot started -- HDJ + Bloc Operatoire")

@@ -15,20 +15,23 @@ logger = logging.getLogger(__name__)
 # ── Sheet headers ─────────────────────────────────────────────────────────────
 
 HDJ_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age", "Sexe",
-    "Clinique", "Medecin referant",
-    "Adresse", "Date de visite", "Tension arterielle", "Frequence cardiaque",
+    "N Dossier", "Nom", "Prenom", "Age",
+    "Clinique", "Medecin referant", "Decision finale",
+    "Images", "Telephone", "Sexe", "Adresse",
+    "Date de visite", "Tension arterielle", "Frequence cardiaque",
     "Examen", "Diagnostic final", "Antecedents",
-    "Traitement en cours", "Decision finale", "Evolution", "Note",
+    "Traitement en cours", "Evolution", "Note",
     "Date d'insertion"
 ]
 
 BLOC_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age", "Sexe",
-    "Clinique", "Medecin referant",
+    "N Dossier", "Nom", "Prenom", "Age",
+    "Clinique", "Medecin referant", "Decision",
+    "Images", "Telephone", "Sexe",
     "Diagnostic", "Type d'intervention", "Date d'intervention", "Operateur",
-    "Anesthesiste", "Decision", "Resultat d'operation", "Complications",
-    "Duree", "Suivi post-op", "Note", "Date d'insertion"
+    "Anesthesiste", "Resultat d'operation", "Complications",
+    "Duree", "Suivi post-op", "Note",
+    "Date d'insertion"
 ]
 
 # ── Field mappings (AI keys -> sheet column names) ────────────────────────────
@@ -38,9 +41,11 @@ HDJ_FIELD_MAP = {
     "nom": "Nom",
     "prenom": "Prenom",
     "age": "Age",
-    "sexe": "Sexe",
     "clinique": "Clinique",
     "medecin_referant": "Medecin referant",
+    "decision_finale": "Decision finale",
+    "telephone": "Telephone",
+    "sexe": "Sexe",
     "adresse": "Adresse",
     "date_visite": "Date de visite",
     "tension": "Tension arterielle",
@@ -49,7 +54,6 @@ HDJ_FIELD_MAP = {
     "diagnostic_final": "Diagnostic final",
     "antecedents": "Antecedents",
     "traitement": "Traitement en cours",
-    "decision_finale": "Decision finale",
     "evolution": "Evolution",
     "note": "Note",
 }
@@ -59,15 +63,16 @@ BLOC_FIELD_MAP = {
     "nom": "Nom",
     "prenom": "Prenom",
     "age": "Age",
-    "sexe": "Sexe",
     "clinique": "Clinique",
     "medecin_referant": "Medecin referant",
+    "decision": "Decision",
+    "telephone": "Telephone",
+    "sexe": "Sexe",
     "diagnostic": "Diagnostic",
     "type_intervention": "Type d'intervention",
     "date_intervention": "Date d'intervention",
     "operateur": "Operateur",
     "anesthesiste": "Anesthesiste",
-    "decision": "Decision",
     "resultat_operation": "Resultat d'operation",
     "complications": "Complications",
     "duree": "Duree",
@@ -140,6 +145,64 @@ def get_client():
         )
         logger.info("Google Sheets client initialized successfully")
     return _client
+
+
+DRIVE_FOLDER_ID = "1cAxaSlKqwxPUgUZFiIa4GQlYjuoQlN_N"
+
+
+def upload_image_to_drive(file_path: str, filename: str) -> str:
+    """Upload an image to the CardioBot Google Drive folder and return its shareable link."""
+    import io
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    client = get_client()
+    creds = client.auth
+
+    drive_service = build("drive", "v3", credentials=creds)
+
+    media = MediaFileUpload(file_path, resumable=True)
+    file_metadata = {
+        "name": filename,
+        "parents": [DRIVE_FOLDER_ID]
+    }
+
+    file = drive_service.files().create(
+        body=file_metadata, media_body=media, fields="id"
+    ).execute()
+
+    file_id = file.get("id")
+
+    # Make it viewable by anyone with the link
+    drive_service.permissions().create(
+        fileId=file_id,
+        body={"type": "anyone", "role": "reader"}
+    ).execute()
+
+    link = f"https://drive.google.com/file/d/{file_id}/view"
+    logger.info(f"Image uploaded to Drive: {link}")
+    return link
+
+
+def append_image_to_patient(sheet_name: str, patient_query: str, image_link: str) -> tuple[bool, str]:
+    """Append an image link to a patient's Images column."""
+    sheet = get_sheet(sheet_name)
+    all_values = sheet.get_all_records()
+    headers = HDJ_HEADERS if sheet_name == "HDJ" else BLOC_HEADERS
+    query_lower = patient_query.lower()
+
+    for idx, row in enumerate(all_values):
+        row_text = " ".join(str(v) for v in row.values()).lower()
+        if query_lower in row_text:
+            row_num = idx + 2
+            if "Images" in headers:
+                col_idx = headers.index("Images") + 1
+                existing = str(row.get("Images", "")).strip()
+                new_val = f"{existing}\n{image_link}".strip() if existing else image_link
+                sheet.update_cell(row_num, col_idx, new_val)
+            name = f"{row.get('Prenom', '')} {row.get('Nom', '')}".strip()
+            return True, name or "Patient"
+    return False, ""
 
 
 def get_spreadsheet():
@@ -395,9 +458,11 @@ def format_hdj_patient(row: dict) -> str:
     fields = [
         ("N Dossier", "Dossier"),
         ("Age", "Age"),
-        ("Sexe", "Sexe"),
         ("Clinique", "Clinique"),
         ("Medecin referant", "Medecin ref."),
+        ("Decision finale", "Decision"),
+        ("Telephone", "Tel"),
+        ("Sexe", "Sexe"),
         ("Adresse", "Adresse"),
         ("Date de visite", "Date"),
         ("Tension arterielle", "TA"),
@@ -406,7 +471,6 @@ def format_hdj_patient(row: dict) -> str:
         ("Diagnostic final", "Diagnostic"),
         ("Antecedents", "Antecedents"),
         ("Traitement en cours", "Traitement"),
-        ("Decision finale", "Decision"),
         ("Evolution", "Evolution"),
         ("Note", "Note"),
     ]
@@ -423,15 +487,16 @@ def format_bloc_patient(row: dict) -> str:
     fields = [
         ("N Dossier", "Dossier"),
         ("Age", "Age"),
-        ("Sexe", "Sexe"),
         ("Clinique", "Clinique"),
         ("Medecin referant", "Medecin ref."),
+        ("Decision", "Decision"),
+        ("Telephone", "Tel"),
+        ("Sexe", "Sexe"),
         ("Diagnostic", "Diagnostic"),
         ("Type d'intervention", "Intervention"),
         ("Date d'intervention", "Date"),
         ("Operateur", "Operateur"),
         ("Anesthesiste", "Anesthesiste"),
-        ("Decision", "Decision"),
         ("Resultat d'operation", "Resultat"),
         ("Complications", "Complications"),
         ("Duree", "Duree"),
