@@ -84,13 +84,18 @@ REPONDS TOUJOURS avec cette structure JSON:
 ```
 
 Pour ADD_HDJ, extrais ces champs (tous optionnels sauf nom):
-- nom, prenom, age (entier), sexe (Homme/Femme), adresse,
-  date_visite, tension, frequence_cardiaque, examen (ETT/ETO/ECG/Holter/Epreuve d'effort),
-  clinique (nom de l'hopital/clinique), diagnostic_final,
-  antecedents, traitement, decision_finale, evolution, note, numero_dossier
+- nom, prenom, age (entier), sexe (Homme/Femme),
+  clinique (presentation clinique: symptomes et signes comme dyspnee, douleur thoracique, palpitations, syncope, oedemes...),
+  medecin_referant (medecin qui a adresse le patient),
+  adresse, date_visite, tension, frequence_cardiaque,
+  examen (ETT/ETO/ECG/Holter/Epreuve d'effort),
+  diagnostic_final, antecedents, traitement, decision_finale, evolution, note, numero_dossier
 
 Pour ADD_BLOC, extrais:
-- nom, prenom, age, sexe, diagnostic, type_intervention,
+- nom, prenom, age, sexe,
+  clinique (presentation clinique: symptomes et signes),
+  medecin_referant (medecin qui a adresse le patient),
+  diagnostic, type_intervention,
   date_intervention, operateur, anesthesiste, decision,
   resultat_operation, complications, duree, suivi_postop, note, numero_dossier
 

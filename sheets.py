@@ -15,16 +15,18 @@ logger = logging.getLogger(__name__)
 # ── Sheet headers ─────────────────────────────────────────────────────────────
 
 HDJ_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age", "Sexe", "Adresse",
-    "Date de visite", "Tension arterielle", "Frequence cardiaque",
-    "Examen", "Clinique", "Diagnostic final", "Antecedents",
+    "N Dossier", "Nom", "Prenom", "Age", "Sexe",
+    "Clinique", "Medecin referant",
+    "Adresse", "Date de visite", "Tension arterielle", "Frequence cardiaque",
+    "Examen", "Diagnostic final", "Antecedents",
     "Traitement en cours", "Decision finale", "Evolution", "Note",
     "Date d'insertion"
 ]
 
 BLOC_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age", "Sexe", "Diagnostic",
-    "Type d'intervention", "Date d'intervention", "Operateur",
+    "N Dossier", "Nom", "Prenom", "Age", "Sexe",
+    "Clinique", "Medecin referant",
+    "Diagnostic", "Type d'intervention", "Date d'intervention", "Operateur",
     "Anesthesiste", "Decision", "Resultat d'operation", "Complications",
     "Duree", "Suivi post-op", "Note", "Date d'insertion"
 ]
@@ -37,12 +39,13 @@ HDJ_FIELD_MAP = {
     "prenom": "Prenom",
     "age": "Age",
     "sexe": "Sexe",
+    "clinique": "Clinique",
+    "medecin_referant": "Medecin referant",
     "adresse": "Adresse",
     "date_visite": "Date de visite",
     "tension": "Tension arterielle",
     "frequence_cardiaque": "Frequence cardiaque",
     "examen": "Examen",
-    "clinique": "Clinique",
     "diagnostic_final": "Diagnostic final",
     "antecedents": "Antecedents",
     "traitement": "Traitement en cours",
@@ -57,6 +60,8 @@ BLOC_FIELD_MAP = {
     "prenom": "Prenom",
     "age": "Age",
     "sexe": "Sexe",
+    "clinique": "Clinique",
+    "medecin_referant": "Medecin referant",
     "diagnostic": "Diagnostic",
     "type_intervention": "Type d'intervention",
     "date_intervention": "Date d'intervention",
@@ -391,12 +396,13 @@ def format_hdj_patient(row: dict) -> str:
         ("N Dossier", "Dossier"),
         ("Age", "Age"),
         ("Sexe", "Sexe"),
+        ("Clinique", "Clinique"),
+        ("Medecin referant", "Medecin ref."),
         ("Adresse", "Adresse"),
         ("Date de visite", "Date"),
         ("Tension arterielle", "TA"),
         ("Frequence cardiaque", "FC"),
         ("Examen", "Examen"),
-        ("Clinique", "Clinique"),
         ("Diagnostic final", "Diagnostic"),
         ("Antecedents", "Antecedents"),
         ("Traitement en cours", "Traitement"),
@@ -418,6 +424,8 @@ def format_bloc_patient(row: dict) -> str:
         ("N Dossier", "Dossier"),
         ("Age", "Age"),
         ("Sexe", "Sexe"),
+        ("Clinique", "Clinique"),
+        ("Medecin referant", "Medecin ref."),
         ("Diagnostic", "Diagnostic"),
         ("Type d'intervention", "Intervention"),
         ("Date d'intervention", "Date"),
