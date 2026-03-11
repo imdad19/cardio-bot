@@ -1,0 +1,35 @@
+# -- Environment / Credentials --
+.env
+authorized_user.json
+client_secret.json
+credentials.json
+
+# -- Python --
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# -- Generated files --
+dashboard.png
+
+# -- IDE --
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -- OS --
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -- Misc --
+*.log
+photo.png
