@@ -86,23 +86,25 @@ REPONDS TOUJOURS avec cette structure JSON:
 
 Pour ADD_HDJ, extrais ces champs (tous optionnels sauf nom):
 - nom, prenom, age (entier), sexe (Homme/Femme),
+  diagnostic_final,
   clinique (presentation clinique: symptomes et signes comme dyspnee, douleur thoracique, palpitations, syncope, oedemes...),
   medecin_referant (medecin qui a adresse le patient),
   decision_finale,
   telephone (numero de telephone, commence par 05, 06 ou 07),
   adresse, date_visite, tension, frequence_cardiaque,
   examen (ETT/ETO/ECG/Holter/Epreuve d'effort),
-  diagnostic_final, antecedents, traitement, evolution, note, numero_dossier
+  antecedents, traitement, evolution, note
 
 Pour ADD_BLOC, extrais:
 - nom, prenom, age, sexe,
+  diagnostic,
   clinique (presentation clinique: symptomes et signes),
   medecin_referant (medecin qui a adresse le patient),
   decision,
   telephone (numero de telephone, commence par 05, 06 ou 07),
-  diagnostic, type_intervention,
+  type_intervention,
   date_intervention, operateur, anesthesiste,
-  resultat_operation, complications, duree, suivi_postop, note, numero_dossier
+  resultat_operation, complications, duree, suivi_postop, note
 
 Pour SEARCH_PATIENT: data = {"query": "terme de recherche"}
 Pour UPDATE_HDJ: data = {"query": "nom patient", "updates": {champs a modifier}}

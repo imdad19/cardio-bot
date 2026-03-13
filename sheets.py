@@ -15,20 +15,20 @@ logger = logging.getLogger(__name__)
 # ── Sheet headers ─────────────────────────────────────────────────────────────
 
 HDJ_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age",
+    "Nom", "Prenom", "Age", "Diagnostic final",
     "Clinique", "Medecin referant", "Decision finale",
     "Images", "Telephone", "Sexe", "Adresse",
     "Date de visite", "Tension arterielle", "Frequence cardiaque",
-    "Examen", "Diagnostic final", "Antecedents",
+    "Examen", "Antecedents",
     "Traitement en cours", "Evolution", "Note",
     "Date d'insertion"
 ]
 
 BLOC_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age",
+    "Nom", "Prenom", "Age", "Diagnostic",
     "Clinique", "Medecin referant", "Decision",
     "Images", "Telephone", "Sexe",
-    "Diagnostic", "Type d'intervention", "Date d'intervention", "Operateur",
+    "Type d'intervention", "Date d'intervention", "Operateur",
     "Anesthesiste", "Resultat d'operation", "Complications",
     "Duree", "Suivi post-op", "Note",
     "Date d'insertion"
@@ -37,10 +37,10 @@ BLOC_HEADERS = [
 # ── Field mappings (AI keys -> sheet column names) ────────────────────────────
 
 HDJ_FIELD_MAP = {
-    "numero_dossier": "N Dossier",
     "nom": "Nom",
     "prenom": "Prenom",
     "age": "Age",
+    "diagnostic_final": "Diagnostic final",
     "clinique": "Clinique",
     "medecin_referant": "Medecin referant",
     "decision_finale": "Decision finale",
@@ -51,7 +51,6 @@ HDJ_FIELD_MAP = {
     "tension": "Tension arterielle",
     "frequence_cardiaque": "Frequence cardiaque",
     "examen": "Examen",
-    "diagnostic_final": "Diagnostic final",
     "antecedents": "Antecedents",
     "traitement": "Traitement en cours",
     "evolution": "Evolution",
@@ -59,16 +58,15 @@ HDJ_FIELD_MAP = {
 }
 
 BLOC_FIELD_MAP = {
-    "numero_dossier": "N Dossier",
     "nom": "Nom",
     "prenom": "Prenom",
     "age": "Age",
+    "diagnostic": "Diagnostic",
     "clinique": "Clinique",
     "medecin_referant": "Medecin referant",
     "decision": "Decision",
     "telephone": "Telephone",
     "sexe": "Sexe",
-    "diagnostic": "Diagnostic",
     "type_intervention": "Type d'intervention",
     "date_intervention": "Date d'intervention",
     "operateur": "Operateur",
@@ -456,8 +454,8 @@ def format_hdj_patient(row: dict) -> str:
     """Format an HDJ patient row for Telegram display."""
     lines = [f"*{row.get('Prenom', '')} {row.get('Nom', '')}*"]
     fields = [
-        ("N Dossier", "Dossier"),
         ("Age", "Age"),
+        ("Diagnostic final", "Diagnostic"),
         ("Clinique", "Clinique"),
         ("Medecin referant", "Medecin ref."),
         ("Decision finale", "Decision"),
@@ -468,7 +466,6 @@ def format_hdj_patient(row: dict) -> str:
         ("Tension arterielle", "TA"),
         ("Frequence cardiaque", "FC"),
         ("Examen", "Examen"),
-        ("Diagnostic final", "Diagnostic"),
         ("Antecedents", "Antecedents"),
         ("Traitement en cours", "Traitement"),
         ("Evolution", "Evolution"),
@@ -485,14 +482,13 @@ def format_bloc_patient(row: dict) -> str:
     """Format a Bloc Operatoire patient row for Telegram display."""
     lines = [f"*{row.get('Prenom', '')} {row.get('Nom', '')}*"]
     fields = [
-        ("N Dossier", "Dossier"),
         ("Age", "Age"),
+        ("Diagnostic", "Diagnostic"),
         ("Clinique", "Clinique"),
         ("Medecin referant", "Medecin ref."),
         ("Decision", "Decision"),
         ("Telephone", "Tel"),
         ("Sexe", "Sexe"),
-        ("Diagnostic", "Diagnostic"),
         ("Type d'intervention", "Intervention"),
         ("Date d'intervention", "Date"),
         ("Operateur", "Operateur"),

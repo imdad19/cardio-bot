@@ -15,20 +15,20 @@ import gspread
 CREDENTIALS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 HDJ_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age",
+    "Nom", "Prenom", "Age", "Diagnostic final",
     "Clinique", "Medecin referant", "Decision finale",
     "Images", "Telephone", "Sexe", "Adresse",
     "Date de visite", "Tension arterielle", "Frequence cardiaque",
-    "Examen", "Diagnostic final", "Antecedents",
+    "Examen", "Antecedents",
     "Traitement en cours", "Evolution", "Note",
     "Date d'insertion"
 ]
 
 BLOC_HEADERS = [
-    "N Dossier", "Nom", "Prenom", "Age",
+    "Nom", "Prenom", "Age", "Diagnostic",
     "Clinique", "Medecin referant", "Decision",
     "Images", "Telephone", "Sexe",
-    "Diagnostic", "Type d'intervention", "Date d'intervention", "Operateur",
+    "Type d'intervention", "Date d'intervention", "Operateur",
     "Anesthesiste", "Resultat d'operation", "Complications",
     "Duree", "Suivi post-op", "Note",
     "Date d'insertion"
