@@ -52,7 +52,7 @@ conversation_histories: dict[int, list] = {}
 # CLAUDE AI
 # =============================================================================
 
-SYSTEM_PROMPT = """Tu es CardioBot, un assistant medical intelligent pour Dr. Najib, cardiologue.
+SYSTEM_PROMPT = """Tu es CardioBot, un assistant medical intelligent et polyvalent pour Dr. Najib, cardiologue.
 Tu geres les dossiers patients stockes dans Google Sheets avec deux feuilles:
 
 1. HDJ (Hopital De Jour): pour les consultations, echocardiographies (ETT/ETO), suivis
@@ -61,30 +61,58 @@ Tu geres les dossiers patients stockes dans Google Sheets avec deux feuilles:
 Tu communiques en francais et en anglais selon la langue de l'utilisateur.
 IMPORTANT: N'utilise JAMAIS d'emojis dans tes reponses. Garde un ton professionnel et sobre.
 
-Tu as ces capacites:
+== ROLE PRINCIPAL ==
+Tu es a la fois:
+- Un GESTIONNAIRE DE DOSSIERS: ajouter, modifier, chercher des patients
+- Un ANALYSTE DE DONNEES: filtrer, compter, comparer, identifier des tendances dans la base de donnees patients
+- Un ASSISTANT MEDICAL: discuter des cas, donner des suggestions, repondre aux questions medicales
+
+Tu dois t'adapter intelligemment a tout type de requete. Tu recois TOUJOURS les donnees actuelles de la base.
+Utilise ces donnees pour repondre a TOUTE question qui concerne les patients, les diagnostics, les statistiques, etc.
+
+== ACTIONS DISPONIBLES ==
 - ADD_HDJ: Ajouter un patient en consultation/HDJ
 - ADD_BLOC: Ajouter un patient pour le bloc operatoire
-- SEARCH_PATIENT: Chercher un patient par nom, numero de dossier, ou diagnostic
+- SEARCH_PATIENT: Chercher un patient specifique par nom ou numero de dossier
 - UPDATE_HDJ: Mettre a jour un dossier HDJ
 - UPDATE_BLOC: Mettre a jour un dossier bloc
 - LIST_HDJ: Lister les patients HDJ recents
 - LIST_BLOC: Lister les patients bloc recents
-- ANALYZE: Analyser les donnees patients (statistiques, tendances, comparaisons)
+- QUERY_DATA: Filtrer, lister, ou analyser les patients selon des criteres (diagnostic, age, date, examen, etc.)
+- ANALYZE: Calculer des statistiques, identifier des tendances, faire des comparaisons sur les donnees
 - SUGGEST: Fournir des suggestions medicales basees sur un cas clinique ou un patient existant
-- ANSWER: Repondre a une question medicale ou generale
-
-Quand l'utilisateur fournit des informations patient, extrais les champs disponibles.
+- ANSWER: Repondre a une question medicale, generale, ou discuter d'un sujet
 
 REPONDS TOUJOURS avec cette structure JSON:
 ```json
 {
-  "action": "ADD_HDJ" | "ADD_BLOC" | "SEARCH_PATIENT" | "UPDATE_HDJ" | "UPDATE_BLOC" | "LIST_HDJ" | "LIST_BLOC" | "ANALYZE" | "SUGGEST" | "ANSWER",
+  "action": "ADD_HDJ" | "ADD_BLOC" | "SEARCH_PATIENT" | "UPDATE_HDJ" | "UPDATE_BLOC" | "LIST_HDJ" | "LIST_BLOC" | "QUERY_DATA" | "ANALYZE" | "SUGGEST" | "ANSWER",
   "data": { ... },
-  "message": "Reponse lisible dans la langue de l'utilisateur"
+  "message": "Reponse lisible et detaillee dans la langue de l'utilisateur"
 }
 ```
 
-Pour ADD_HDJ, extrais ces champs (tous optionnels sauf nom):
+== QUAND UTILISER CHAQUE ACTION ==
+
+QUERY_DATA -- Utilise cette action quand l'utilisateur:
+- Demande une liste de patients selon un critere: "donne moi les patients avec diagnostic de...", "list patients with...", "qui a un diagnostic de..."
+- Veut filtrer par diagnostic, age, sexe, date, examen, medecin, traitement, etc.
+- Pose une question de type "combien de patients ont...", "how many patients have..."
+- Demande des comparaisons entre groupes de patients
+- Veut savoir quels patients ont recu un certain traitement ou examen
+Pour QUERY_DATA: data = {"query": "description de la requete"}
+IMPORTANT: Dans le champ "message", inclus TOUJOURS les resultats trouves de maniere formatee et lisible.
+Si tu trouves des patients correspondants, liste-les avec leurs details pertinents.
+Ajoute un resume/comptage et toute observation utile.
+
+ANALYZE -- Utilise quand l'utilisateur demande des statistiques, tendances, distributions, moyennes, comparaisons globales.
+Pour ANALYZE: data = {"query": "la question d'analyse"}
+Dans "message", inclus les chiffres, pourcentages, et insights.
+
+SEARCH_PATIENT -- Utilise UNIQUEMENT quand l'utilisateur cherche un patient SPECIFIQUE par nom ou numero.
+Pour SEARCH_PATIENT: data = {"query": "terme de recherche"}
+
+ADD_HDJ -- Extrais ces champs (tous optionnels sauf nom):
 - nom, prenom, age (entier), sexe (Homme/Femme),
   diagnostic_final,
   clinique (presentation clinique: symptomes et signes comme dyspnee, douleur thoracique, palpitations, syncope, oedemes...),
@@ -95,7 +123,7 @@ Pour ADD_HDJ, extrais ces champs (tous optionnels sauf nom):
   examen (ETT/ETO/ECG/Holter/Epreuve d'effort),
   antecedents, traitement, evolution, note
 
-Pour ADD_BLOC, extrais:
+ADD_BLOC -- Extrais:
 - nom, prenom, age, sexe,
   diagnostic,
   clinique (presentation clinique: symptomes et signes),
@@ -106,12 +134,10 @@ Pour ADD_BLOC, extrais:
   date_intervention, operateur, anesthesiste,
   resultat_operation, complications, duree, suivi_postop, note
 
-Pour SEARCH_PATIENT: data = {"query": "terme de recherche"}
-Pour UPDATE_HDJ: data = {"query": "nom patient", "updates": {champs a modifier}}
-Pour UPDATE_BLOC: data = {"query": "nom patient", "updates": {champs a modifier}}
-Pour LIST_HDJ / LIST_BLOC: data = {}
-Pour ANALYZE: data = {"query": "la question d'analyse"}
-Pour SUGGEST: data = {"query": "nom du patient ou description du cas", "context": "informations supplementaires"}
+UPDATE_HDJ: data = {"query": "nom patient", "updates": {champs a modifier}}
+UPDATE_BLOC: data = {"query": "nom patient", "updates": {champs a modifier}}
+LIST_HDJ / LIST_BLOC: data = {}
+SUGGEST: data = {"query": "nom du patient ou description du cas", "context": "informations supplementaires"}
   - Quand l'utilisateur demande des suggestions, fournis:
     * Examens complementaires recommandes
     * Options therapeutiques possibles
@@ -119,20 +145,31 @@ Pour SUGGEST: data = {"query": "nom du patient ou description du cas", "context"
     * Recommandations de suivi
     * References aux guidelines ESC/AHA si pertinent
   - IMPORTANT: Rappelle toujours que les suggestions ne remplacent pas le jugement clinique du praticien
-Pour ANSWER: data = {"response": "ta reponse"}
+ANSWER: data = {"response": "ta reponse"}
 
-Determine intelligemment si un patient va en HDJ ou au Bloc:
-- Mots-cles HDJ: ETT, ETO, consultation, suivi, controle, visite, echocardiographie, holter, ECG
-- Mots-cles Bloc: operation, bloc, chirurgie, intervention, coronarographie, stent, ablation, catheterisme, pontage
+== REGLES D'INTELLIGENCE ==
 
-Determine si l'utilisateur demande une suggestion:
-- Mots-cles: suggestion, suggere, recommande, que faire, conduite a tenir, quoi faire, propose, avis, conseil, what should, recommend, advise, opinion
+1. Determine intelligemment si un patient va en HDJ ou au Bloc:
+   - HDJ: ETT, ETO, consultation, suivi, controle, visite, echocardiographie, holter, ECG
+   - Bloc: operation, bloc, chirurgie, intervention, coronarographie, stent, ablation, catheterisme, pontage
+
+2. Pour TOUTE question touchant aux donnees patients, ANALYSE les donnees fournies dans [DONNEES ACTUELLES DE LA BASE].
+   Ne dis JAMAIS "je n'ai pas acces aux donnees" -- tu les recois toujours.
+
+3. Quand tu filtre des patients par critere (diagnostic, examen, etc.), fais un matching flexible:
+   - Ignore la casse (majuscules/minuscules)
+   - Cherche des sous-chaines ("mitral" doit matcher "insuffisance mitrale grade II")
+   - Considere les synonymes medicaux courants
+
+4. Tu peux discuter librement des cas, donnees et observations. Tu n'es pas limite a des commandes rigides.
+
+5. Si l'utilisateur pose une question de suivi sur un resultat precedent, utilise le contexte de la conversation.
 
 Sois concis, professionnel et medicalement precis. N'invente jamais de donnees patient."""
 
 
 def get_ai_response(user_id: int, user_message: str, context_data: str = "") -> dict:
-    """Get structured response from Claude with optional data context."""
+    """Get structured response from Claude with patient data context."""
     if user_id not in conversation_histories:
         conversation_histories[user_id] = []
 
@@ -151,7 +188,7 @@ def get_ai_response(user_id: int, user_message: str, context_data: str = "") -> 
 
     response = claude.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=2500,
+        max_tokens=4000,
         system=SYSTEM_PROMPT,
         messages=history
     )
@@ -175,32 +212,24 @@ def get_ai_response(user_id: int, user_message: str, context_data: str = "") -> 
 
 
 def _load_context_data() -> str:
-    """Load patient data from both sheets for context-aware responses."""
+    """Load ALL patient data from both sheets for context-aware responses."""
     try:
         all_data = get_all_data_for_analysis()
-        hdj_summary = json.dumps(all_data["hdj"][-50:], ensure_ascii=False, indent=2) if all_data["hdj"] else "Aucune donnee HDJ"
-        bloc_summary = json.dumps(all_data["bloc"][-50:], ensure_ascii=False, indent=2) if all_data["bloc"] else "Aucune donnee Bloc"
-        return f"HDJ ({len(all_data['hdj'])} patients):\n{hdj_summary}\n\nBloc Operatoire ({len(all_data['bloc'])} patients):\n{bloc_summary}"
+        hdj_data = all_data["hdj"]
+        bloc_data = all_data["bloc"]
+        hdj_summary = json.dumps(hdj_data, ensure_ascii=False, indent=2) if hdj_data else "Aucune donnee HDJ"
+        bloc_summary = json.dumps(bloc_data, ensure_ascii=False, indent=2) if bloc_data else "Aucune donnee Bloc"
+        return f"HDJ ({len(hdj_data)} patients):\n{hdj_summary}\n\nBloc Operatoire ({len(bloc_data)} patients):\n{bloc_summary}"
     except Exception as e:
         logger.warning(f"Could not load data for context: {e}")
         return ""
 
 
-# Keywords that trigger data loading for context-aware responses
-CONTEXT_KEYWORDS = [
-    # Analysis
-    "combien", "statistique", "analyse", "resume", "compare",
-    "tendance", "evolution", "total", "moyenne", "how many",
-    "summary", "analyze", "trend", "patients ce mois",
-    "patients cette semaine", "precedent", "dernier",
-    "historique", "donnees", "previous", "last",
-    # Suggestions
-    "suggestion", "suggere", "recommande", "que faire",
-    "conduite a tenir", "quoi faire", "propose", "avis",
-    "conseil", "what should", "recommend", "advise", "opinion",
-    # Case queries
-    "cas de", "dossier de", "patient", "montre", "cherche",
-    "find", "show", "search",
+# Keywords that indicate a pure data-entry message (no context loading needed)
+# For everything else, we ALWAYS load data context so Claude can be intelligent.
+DATA_ENTRY_ONLY_PATTERNS = [
+    # Only skip context loading for obvious patient additions
+    # that start with structured data entry patterns
 ]
 
 
@@ -420,6 +449,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_dashboard(query.message, context)
 
 
+async def _send_long_message(chat_message, text: str, parse_mode: str = "Markdown"):
+    """Send a message, splitting into chunks if it exceeds Telegram's limit."""
+    if len(text) > 4000:
+        parts = [text[i:i+4000] for i in range(0, len(text), 4000)]
+        for part in parts:
+            try:
+                await chat_message.reply_text(part, parse_mode=parse_mode)
+            except Exception:
+                # Fallback without Markdown if formatting causes issues
+                await chat_message.reply_text(part)
+    else:
+        try:
+            await chat_message.reply_text(text, parse_mode=parse_mode)
+        except Exception:
+            await chat_message.reply_text(text)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
         await update.message.reply_text("Acces non autorise.")
@@ -431,10 +477,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Typing indicator
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-    # Load data context if the message seems to need it
-    context_data = ""
-    if any(kw in user_text.lower() for kw in CONTEXT_KEYWORDS):
-        context_data = _load_context_data()
+    # ALWAYS load data context so Claude can answer any kind of query intelligently.
+    # This makes the bot adaptive to any question type -- diagnosis queries,
+    # statistical analysis, patient comparisons, follow-up discussions, etc.
+    context_data = _load_context_data()
 
     # Get AI structured response
     ai_result = get_ai_response(user_id, user_text, context_data)
@@ -446,30 +492,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "ADD_HDJ":
         try:
             patient_name = add_hdj_patient(data)
-            await update.message.reply_text(
-                f"*Dossier HDJ cree:* {patient_name}\n\n{message}",
-                parse_mode="Markdown"
+            await _send_long_message(
+                update.message,
+                f"*Dossier HDJ cree:* {patient_name}\n\n{message}"
             )
         except Exception as e:
             logger.error(f"Sheets add HDJ error: {e}")
-            await update.message.reply_text(
-                f"Donnees extraites mais erreur Google Sheets:\n`{str(e)[:200]}`\n\n{message}",
-                parse_mode="Markdown"
+            await _send_long_message(
+                update.message,
+                f"Donnees extraites mais erreur Google Sheets:\n`{str(e)[:200]}`\n\n{message}"
             )
 
     # -- ADD BLOC --------------------------------------------------------------
     elif action == "ADD_BLOC":
         try:
             patient_name = add_bloc_patient(data)
-            await update.message.reply_text(
-                f"*Dossier Bloc cree:* {patient_name}\n\n{message}",
-                parse_mode="Markdown"
+            await _send_long_message(
+                update.message,
+                f"*Dossier Bloc cree:* {patient_name}\n\n{message}"
             )
         except Exception as e:
             logger.error(f"Sheets add Bloc error: {e}")
-            await update.message.reply_text(
-                f"Donnees extraites mais erreur Google Sheets:\n`{str(e)[:200]}`\n\n{message}",
-                parse_mode="Markdown"
+            await _send_long_message(
+                update.message,
+                f"Donnees extraites mais erreur Google Sheets:\n`{str(e)[:200]}`\n\n{message}"
             )
 
     # -- SEARCH PATIENT --------------------------------------------------------
@@ -481,11 +527,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             bloc_results = results["bloc"]
 
             if not hdj_results and not bloc_results:
-                await update.message.reply_text(
-                    f"Aucun patient trouve pour \"{query_term}\".\n"
-                    "Verifiez l'orthographe ou essayez le numero de dossier."
-                )
+                # No exact search results, but Claude may have found matches
+                # in the context data. Show Claude's analysis.
+                if message and message != "Je n'ai pas compris.":
+                    await _send_long_message(update.message, message)
+                else:
+                    await update.message.reply_text(
+                        f"Aucun patient trouve pour \"{query_term}\".\n"
+                        "Verifiez l'orthographe ou essayez le numero de dossier."
+                    )
             else:
+                # Show formatted results AND Claude's analysis
                 text = ""
                 if hdj_results:
                     text += f"*-- HDJ ({len(hdj_results)} resultat(s)) --*\n\n"
@@ -495,9 +547,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text += f"*-- Bloc Operatoire ({len(bloc_results)} resultat(s)) --*\n\n"
                     for p in bloc_results[:5]:
                         text += format_bloc_patient(p) + "\n\n"
-                if len(text) > 4000:
-                    text = text[:4000] + "\n\n... (resultats tronques)"
-                await update.message.reply_text(text, parse_mode="Markdown")
+                # Append Claude's analysis if it adds value
+                if message and message not in text:
+                    text += f"\n{message}"
+                await _send_long_message(update.message, text)
         except Exception as e:
             logger.error(f"Search error: {e}")
             await update.message.reply_text(f"Erreur de recherche: {str(e)[:200]}")
@@ -509,9 +562,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             success, name = update_hdj_patient(query_term, updates)
             if success:
-                await update.message.reply_text(
-                    f"Dossier HDJ de *{name}* mis a jour.\n\n{message}",
-                    parse_mode="Markdown"
+                await _send_long_message(
+                    update.message,
+                    f"Dossier HDJ de *{name}* mis a jour.\n\n{message}"
                 )
             else:
                 await update.message.reply_text(
@@ -528,9 +581,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             success, name = update_bloc_patient(query_term, updates)
             if success:
-                await update.message.reply_text(
-                    f"Dossier Bloc de *{name}* mis a jour.\n\n{message}",
-                    parse_mode="Markdown"
+                await _send_long_message(
+                    update.message,
+                    f"Dossier Bloc de *{name}* mis a jour.\n\n{message}"
                 )
             else:
                 await update.message.reply_text(
@@ -548,45 +601,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action == "LIST_BLOC":
         await _send_bloc_list(update.message, context)
 
+    # -- QUERY_DATA (new: for data filtering/analysis with AI discussion) ------
+    elif action == "QUERY_DATA":
+        # Claude has the full data context and has already filtered/analyzed.
+        # Its message contains the formatted results and insights.
+        await _send_long_message(update.message, message)
+
     # -- SUGGEST ---------------------------------------------------------------
     elif action == "SUGGEST":
-        # If no context was loaded yet but user is asking about a specific patient, try to load
-        if not context_data:
-            context_data = _load_context_data()
-            if context_data:
-                # Re-ask Claude with the data
-                ai_result = get_ai_response(user_id, user_text, context_data)
-                message = ai_result.get("message", message)
-        if len(message) > 4000:
-            # Split long suggestions
-            parts = [message[i:i+4000] for i in range(0, len(message), 4000)]
-            for part in parts:
-                await update.message.reply_text(part, parse_mode="Markdown")
-        else:
-            await update.message.reply_text(message, parse_mode="Markdown")
+        await _send_long_message(update.message, message)
 
     # -- ANALYZE ---------------------------------------------------------------
     elif action == "ANALYZE":
-        if not context_data:
-            context_data = _load_context_data()
-            if context_data:
-                ai_result = get_ai_response(user_id, user_text, context_data)
-                message = ai_result.get("message", message)
-        if len(message) > 4000:
-            parts = [message[i:i+4000] for i in range(0, len(message), 4000)]
-            for part in parts:
-                await update.message.reply_text(part, parse_mode="Markdown")
-        else:
-            await update.message.reply_text(message, parse_mode="Markdown")
+        await _send_long_message(update.message, message)
 
     # -- GENERAL ANSWER --------------------------------------------------------
     else:
-        if len(message) > 4000:
-            parts = [message[i:i+4000] for i in range(0, len(message), 4000)]
-            for part in parts:
-                await update.message.reply_text(part, parse_mode="Markdown")
-        else:
-            await update.message.reply_text(message, parse_mode="Markdown")
+        await _send_long_message(update.message, message)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
