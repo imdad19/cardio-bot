@@ -387,11 +387,15 @@ def get_all_data_for_analysis() -> dict:
     """Get all data from both sheets for AI analysis."""
     try:
         hdj_data = get_sheet("HDJ").get_all_records()
-    except Exception:
+        logger.info(f"Loaded {len(hdj_data)} HDJ records")
+    except Exception as e:
+        logger.error(f"Failed to load HDJ data: {e}")
         hdj_data = []
     try:
         bloc_data = get_sheet("Bloc Operatoire").get_all_records()
-    except Exception:
+        logger.info(f"Loaded {len(bloc_data)} Bloc records")
+    except Exception as e:
+        logger.error(f"Failed to load Bloc data: {e}")
         bloc_data = []
     return {"hdj": hdj_data, "bloc": bloc_data}
 
