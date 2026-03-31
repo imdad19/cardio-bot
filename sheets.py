@@ -185,7 +185,7 @@ def upload_image_to_drive(file_path: str, filename: str) -> str:
 def append_image_to_patient(sheet_name: str, patient_query: str, image_link: str) -> tuple[bool, str]:
     """Append an image link to a patient's Images column."""
     sheet = get_sheet(sheet_name)
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     headers = HDJ_HEADERS if sheet_name == "HDJ" else BLOC_HEADERS
     query_lower = patient_query.lower()
 
@@ -205,14 +205,19 @@ def append_image_to_patient(sheet_name: str, patient_query: str, image_link: str
 
 def get_spreadsheet():
     """Get or open the CardioBot spreadsheet."""
-    global _spreadsheet
+    global _spreadsheet, _client
     if _spreadsheet is None:
-        client = get_client()
-        spreadsheet_id = os.environ.get("SPREADSHEET_ID", "")
-        if spreadsheet_id:
+        try:
+            client = get_client()
+            spreadsheet_id = os.environ.get("SPREADSHEET_ID", "")
+            if not spreadsheet_id:
+                raise ValueError("SPREADSHEET_ID not set in environment variables.")
             _spreadsheet = client.open_by_key(spreadsheet_id)
-        else:
-            raise ValueError("SPREADSHEET_ID not set in environment variables.")
+        except Exception:
+            # Invalidate caches so the next call retries fresh
+            _spreadsheet = None
+            _client = None
+            raise
     return _spreadsheet
 
 
@@ -255,7 +260,7 @@ def add_hdj_patient(data: dict) -> str:
 def get_hdj_patients(limit: int = 10) -> list[dict]:
     """Fetch recent HDJ patients."""
     sheet = get_sheet("HDJ")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     if not all_values:
         return []
     return list(reversed(all_values[-limit:]))
@@ -264,7 +269,7 @@ def get_hdj_patients(limit: int = 10) -> list[dict]:
 def search_hdj_patients(query: str) -> list[dict]:
     """Search HDJ patients across all text columns."""
     sheet = get_sheet("HDJ")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     query_lower = query.lower()
     results = []
     for row in all_values:
@@ -278,7 +283,7 @@ def search_hdj_patients(query: str) -> list[dict]:
 def update_hdj_patient(search_query: str, updates: dict) -> tuple[bool, str]:
     """Update an HDJ patient row. Returns (success, patient_name)."""
     sheet = get_sheet("HDJ")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     query_lower = search_query.lower()
 
     for idx, row in enumerate(all_values):
@@ -330,7 +335,7 @@ def add_bloc_patient(data: dict) -> str:
 def get_bloc_patients(limit: int = 10) -> list[dict]:
     """Fetch recent Bloc Operatoire patients."""
     sheet = get_sheet("Bloc Operatoire")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     if not all_values:
         return []
     return list(reversed(all_values[-limit:]))
@@ -339,7 +344,7 @@ def get_bloc_patients(limit: int = 10) -> list[dict]:
 def search_bloc_patients(query: str) -> list[dict]:
     """Search Bloc patients across all text columns."""
     sheet = get_sheet("Bloc Operatoire")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     query_lower = query.lower()
     results = []
     for row in all_values:
@@ -353,7 +358,7 @@ def search_bloc_patients(query: str) -> list[dict]:
 def update_bloc_patient(search_query: str, updates: dict) -> tuple[bool, str]:
     """Update a Bloc patient row."""
     sheet = get_sheet("Bloc Operatoire")
-    all_values = sheet.get_all_records()
+    all_values = sheet.get_all_records(expected_headers=[])
     query_lower = search_query.lower()
 
     for idx, row in enumerate(all_values):

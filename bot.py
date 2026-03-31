@@ -187,7 +187,7 @@ def get_ai_response(user_id: int, user_message: str, context_data: str = "") -> 
     history = conversation_histories[user_id][-20:]
 
     response = claude.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=4000,
         system=SYSTEM_PROMPT,
         messages=history
@@ -211,18 +211,22 @@ def get_ai_response(user_id: int, user_message: str, context_data: str = "") -> 
         return {"action": "ANSWER", "data": {"response": raw}, "message": raw}
 
 
-def _load_context_data() -> str:
-    """Load ALL patient data from both sheets for context-aware responses."""
+def _load_context_data() -> tuple[str, str | None]:
+    """Load ALL patient data from both sheets for context-aware responses.
+    Returns (context_str, error_message). error_message is None on success."""
     try:
         all_data = get_all_data_for_analysis()
         hdj_data = all_data["hdj"]
         bloc_data = all_data["bloc"]
         hdj_summary = json.dumps(hdj_data, ensure_ascii=False, indent=2) if hdj_data else "Aucune donnee HDJ"
         bloc_summary = json.dumps(bloc_data, ensure_ascii=False, indent=2) if bloc_data else "Aucune donnee Bloc"
-        return f"HDJ ({len(hdj_data)} patients):\n{hdj_summary}\n\nBloc Operatoire ({len(bloc_data)} patients):\n{bloc_summary}"
+        return (
+            f"HDJ ({len(hdj_data)} patients):\n{hdj_summary}\n\nBloc Operatoire ({len(bloc_data)} patients):\n{bloc_summary}",
+            None
+        )
     except Exception as e:
-        logger.warning(f"Could not load data for context: {e}")
-        return ""
+        logger.error(f"Could not load data for context: {e}")
+        return "", str(e)
 
 
 # Keywords that indicate a pure data-entry message (no context loading needed)
@@ -478,12 +482,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     # ALWAYS load data context so Claude can answer any kind of query intelligently.
-    # This makes the bot adaptive to any question type -- diagnosis queries,
-    # statistical analysis, patient comparisons, follow-up discussions, etc.
-    context_data = _load_context_data()
+    context_data, sheets_error = _load_context_data()
+    if sheets_error:
+        await update.message.reply_text(
+            f"Avertissement: impossible de charger les donnees Google Sheets.\n"
+            f"`{sheets_error[:200]}`\n\n"
+            "Verifiez les credentials et SPREADSHEET_ID.",
+            parse_mode="Markdown"
+        )
 
     # Get AI structured response
-    ai_result = get_ai_response(user_id, user_text, context_data)
+    try:
+        ai_result = get_ai_response(user_id, user_text, context_data)
+    except Exception as e:
+        logger.error(f"Claude API error: {e}")
+        await update.message.reply_text(
+            f"Erreur de communication avec l'IA:\n`{str(e)[:300]}`",
+            parse_mode="Markdown"
+        )
+        return
     action = ai_result.get("action", "ANSWER")
     data = ai_result.get("data", {})
     message = ai_result.get("message", "Je n'ai pas compris.")
