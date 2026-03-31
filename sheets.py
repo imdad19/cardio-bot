@@ -78,70 +78,72 @@ BLOC_FIELD_MAP = {
     "note": "Note",
 }
 
-# ── Google Sheets client (OAuth2) ─────────────────────────────────────────────
+# ── Google Sheets client ──────────────────────────────────────────────────────
 
 _client = None
 _spreadsheet = None
 
-# Use Path for robust cross-platform path resolution
+# Paths used only for local OAuth flow (dev only)
 _THIS_DIR = Path(__file__).resolve().parent
 _CLIENT_SECRET = _THIS_DIR / "client_secret.json"
 _AUTHORIZED_USER = _THIS_DIR / "authorized_user.json"
 
 
-def _ensure_credentials_on_disk():
-    """
-    For deployed environments (Docker, etc.) where credential files may not
-    exist on disk: read them from environment variables and write to disk.
-    Set GOOGLE_CREDENTIALS_JSON = contents of authorized_user.json
-    """
-    # If authorized_user.json already exists, nothing to do
-    if _AUTHORIZED_USER.exists() and _CLIENT_SECRET.exists():
-        return
+def get_client():
+    """Initialize and return the gspread client.
 
-    # Try to create client_secret.json from env vars
+    Priority:
+    1. Service Account JSON from GOOGLE_SERVICE_ACCOUNT_JSON env var (recommended for servers)
+    2. OAuth2 user credentials from local files (dev only)
+    """
+    global _client
+    if _client is not None:
+        return _client
+
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if sa_json:
+        import json as _json
+        sa_dict = _json.loads(sa_json)
+        _client = gspread.service_account_from_dict(sa_dict)
+        logger.info("Google Sheets client initialized via Service Account")
+        return _client
+
+    # Fallback: OAuth2 for local development
+    # Write credential files from env vars if missing
     if not _CLIENT_SECRET.exists():
         client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
-        client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-        if client_id and client_secret:
+        client_secret_val = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+        if client_id and client_secret_val:
             import json as _json
-            secret_data = {
+            _CLIENT_SECRET.write_text(_json.dumps({
                 "installed": {
                     "client_id": client_id,
-                    "client_secret": client_secret,
+                    "client_secret": client_secret_val,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "redirect_uris": ["http://localhost"]
                 }
-            }
-            _CLIENT_SECRET.write_text(_json.dumps(secret_data))
-            logger.info(f"Created client_secret.json from env vars at {_CLIENT_SECRET}")
+            }))
+            logger.info(f"Created client_secret.json from env vars")
 
-    # Try to create authorized_user.json from env var
     if not _AUTHORIZED_USER.exists():
         creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON", "")
         if creds_json:
             _AUTHORIZED_USER.write_text(creds_json)
-            logger.info(f"Created authorized_user.json from env var at {_AUTHORIZED_USER}")
+            logger.info(f"Created authorized_user.json from env var")
 
-
-def get_client():
-    """Initialize and return the gspread client using OAuth2."""
-    global _client
-    if _client is None:
-        _ensure_credentials_on_disk()
-        logger.info(f"Google Sheets auth -- client_secret: {_CLIENT_SECRET}")
-        logger.info(f"Google Sheets auth -- authorized_user: {_AUTHORIZED_USER}")
-        if not _CLIENT_SECRET.exists():
-            raise FileNotFoundError(
-                f"client_secret.json introuvable: {_CLIENT_SECRET}. "
-                "Definissez GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans les variables d'environnement."
-            )
-        _client = gspread.oauth(
-            credentials_filename=str(_CLIENT_SECRET),
-            authorized_user_filename=str(_AUTHORIZED_USER),
+    if not _CLIENT_SECRET.exists():
+        raise FileNotFoundError(
+            "No Google credentials found. Set GOOGLE_SERVICE_ACCOUNT_JSON env var "
+            "(recommended) or provide client_secret.json for local OAuth."
         )
-        logger.info("Google Sheets client initialized successfully")
+
+    logger.info(f"Google Sheets auth -- OAuth2 (local dev)")
+    _client = gspread.oauth(
+        credentials_filename=str(_CLIENT_SECRET),
+        authorized_user_filename=str(_AUTHORIZED_USER),
+    )
+    logger.info("Google Sheets client initialized via OAuth2")
     return _client
 
 
