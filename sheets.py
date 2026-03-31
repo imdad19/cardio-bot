@@ -147,12 +147,11 @@ def get_client():
     return _client
 
 
-DRIVE_FOLDER_ID = "1cAxaSlKqwxPUgUZFiIa4GQlYjuoQlN_N"
+DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "1cAxaSlKqwxPUgUZFiIa4GQlYjuoQlN_N")
 
 
 def upload_image_to_drive(file_path: str, filename: str) -> str:
     """Upload an image to the CardioBot Google Drive folder and return its shareable link."""
-    import io
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
 
@@ -161,7 +160,7 @@ def upload_image_to_drive(file_path: str, filename: str) -> str:
 
     drive_service = build("drive", "v3", credentials=creds)
 
-    media = MediaFileUpload(file_path, resumable=True)
+    media = MediaFileUpload(file_path, mimetype="image/jpeg", resumable=True)
     file_metadata = {
         "name": filename,
         "parents": [DRIVE_FOLDER_ID]
